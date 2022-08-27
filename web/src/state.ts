@@ -1,6 +1,6 @@
 import { atomFamily, selectorFamily, atom, RecoilLoadable, selector, noWait } from 'recoil'
 import { syncEffect } from 'recoil-sync'
-import { string, nullable, set, mixed, dict, object, number } from '@recoiljs/refine'
+import { string, nullable, set, mixed, dict, object, number, bool } from '@recoiljs/refine'
 import { Point } from './core'
 
 import.meta.hot?.decline()
@@ -35,6 +35,14 @@ export const sessionId$ = atom<string | null>({
 export const headerSessions$ = atom<Array<Session>>({
   key: 'HeaderSessions',
   default: [],
+})
+
+export const connected$ = atom<boolean>({
+  key: 'Connected',
+  default: false,
+  effects: [
+    syncEffect({ refine: bool(), storeKey: 'ConnectedProtocol' })
+  ]
 })
 
 export const selectedObjectId$ = atom<string | null>({

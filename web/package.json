@@ -10,7 +10,7 @@
   "license": "ISC",
   "dependencies": {
     "@react-hook/throttle": "2.2.0",
-    "@recoiljs/refine": "0.1.0",
+    "@recoiljs/refine": "0.1.1",
     "@vitejs/plugin-react": "2.0.0",
     "clsx": "1.2.1",
     "deep-equal": "2.0.5",

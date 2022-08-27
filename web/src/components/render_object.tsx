@@ -39,6 +39,8 @@ const RenderObject = ({
     }
   }
 
+  console.log(objectId)
+
   if (child === null) return null
 
   return (

@@ -1,9 +1,9 @@
 
-import React, { useRef, useEffect, Suspense, useCallback, MouseEvent, RefObject } from 'react'
+import React, { useRef, useEffect, Suspense, useCallback, MouseEvent, RefObject, useState } from 'react'
 import { useRecoilCallback, useRecoilValue, useSetRecoilState, RecoilRoot, useRecoilState } from 'recoil'
 import { useNavigate, useParams } from 'react-router-dom'
-import { username$, objectIds$, squares$, circles$, headerStyle$, stars$, Star, Session, objects$, selectedObjectId$, triangles$, Triangle, textboxes$, Textbox, Square, Circle, boardId$, cursors$, sessions$, headerSessions$, HeaderStyle, sessionId$ } from '../state'
-import { ObjectIdsProtocolSync, ObjectProtocolSync, PresenceProtocolSync } from '../sync'
+import { username$, objectIds$, squares$, circles$, headerStyle$, stars$, Star, Session, objects$, selectedObjectId$, triangles$, Triangle, textboxes$, Textbox, Square, Circle, boardId$, cursors$, sessions$, headerSessions$, HeaderStyle, sessionId$, connected$ } from '../state'
+import { ObjectIdsProtocolSync, ObjectProtocolSync, PresenceProtocolSync, ConnectedProtocolSync } from '../sync'
 import RenderObject from '../components/render_object'
 import Cursor from '../components/cursor'
 import { throttle } from 'throttle-debounce'
@@ -18,11 +18,18 @@ const ActualBoard = ({
   sessionId: string,
   onSessionsChanged: (sessions: Array<Session>) => void,
 }) => {
+  const connected = useRecoilValue(connected$)
   const objectIds = useRecoilValue(objectIds$(boardId))
   const [selectedObjectId, setSelectedObjectId] = useRecoilState(selectedObjectId$)
   const setBoardId = useSetRecoilState(boardId$)
-
   const sessions = useRecoilValue(sessions$)
+
+  const [firstLoadCompleted, setFirstLoadCompleted] = useState(false)
+
+  useEffect(() => {
+    if (connected) setFirstLoadCompleted(true)
+  }, [connected, setFirstLoadCompleted])
+
   useEffect(() => {
     onSessionsChanged(sessions)
   }, [sessions])
@@ -113,9 +120,7 @@ const ActualBoard = ({
       <div style={{ width: '100%', height: '100%', position: 'absolute' }}>
         {[...objectIds].map((objectId) => (
           <Suspense key={objectId}>
-            <RenderObject
-              objectId={objectId}
-              container={containerRef} />
+            <RenderObject objectId={objectId} />
           </Suspense>
         ))}
       </div>
@@ -157,13 +162,21 @@ const ActualBoard = ({
           </button>
         </div>
       </div>
-      <div className="h-full w-full absolute top-0 left-0 pointer-events-none z-50">
+      <div className="h-full w-full absolute top-0 left-0 pointer-events-none z-40">
         {[...sessions].map((session) => (
           <Suspense key={session.id} >
             <Cursor sessionId={session.id} />
           </Suspense>
         ))}
       </div>
+      {!connected && (
+        <div className="h-full w-full top-0 left-0 absolute z-50">
+          <div className="h-full w-full top-0 left-0 absolute bg-black opacity-40" />
+          <div className="h-full w-full top-0 left-0 absolute flex items-center justify-center text-3xl text-white font-archivo">
+            {firstLoadCompleted ? 'Reconnecting...' : 'Loading...'}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -238,12 +251,18 @@ const Board = () => {
             sessionId={sessionId}
             username={username}
             storeKey="PresenceProtocol">
-            <Suspense>
-              <ActualBoard
-                boardId={boardId}
-                sessionId={sessionId}
-                onSessionsChanged={onSessionsChanged} />
-            </Suspense>
+            <ConnectedProtocolSync
+              boardId={boardId}
+              sessionId={sessionId}
+              username={username}
+              storeKey="ConnectedProtocol">
+              <Suspense>
+                <ActualBoard
+                  boardId={boardId}
+                  sessionId={sessionId}
+                  onSessionsChanged={onSessionsChanged} />
+              </Suspense>
+            </ConnectedProtocolSync>
           </PresenceProtocolSync>
         </ObjectIdsProtocolSync>
       </ObjectProtocolSync>

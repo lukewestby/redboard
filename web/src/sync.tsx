@@ -2,7 +2,7 @@ import React, { useRef, useCallback, useEffect, PropsWithChildren } from 'react'
 import { DefaultValue } from 'recoil'
 import { ListenInterface, RecoilSync, WriteInterface } from 'recoil-sync'
 import deepEqual from 'deep-equal'
-import { useProtocol, JsonObject, Json, Change } from './protocol'
+import { useProtocol, JsonObject, Change } from './protocol'
 import { Point } from './core'
 
 export const BrowserStorageSync = ({
@@ -65,6 +65,7 @@ export const ObjectProtocolSync = ({
   username: string,
 }>
 ) => {
+  const streaming = useRef(false)
   const objects = useRef(new Map())
   const pendingObjects = useRef(new Map())
   const pendingChanges = useRef<Map<string, Array<Change>>>(new Map())
@@ -72,7 +73,9 @@ export const ObjectProtocolSync = ({
 
   useEffect(() => {
     objects.current.clear()
+    pendingObjects.current.clear()
     pendingChanges.current.clear()
+    streaming.current = false
   }, [boardId, sessionId])
 
   const pendChange = (change: Change) => {
@@ -137,46 +140,46 @@ export const ObjectProtocolSync = ({
     }
   }, [sessionId])
 
-  const onObjectInserted = useCallback((id: string, object: JsonObject, source: string) => {
-    onChangeReceived({ type: 'Insert', id, object }, source)
-  }, [onChangeReceived])
-  const onObjectUpdated = useCallback((id: string, key: string, value: Json, source: string) => {
-    onChangeReceived({ type: 'Update', id, key, value }, source)
-  }, [onChangeReceived])
-  const onObjectDeleted = useCallback((id: string, source: string) => {
-    onChangeReceived({ type: 'Delete', id }, source)
-  }, [onChangeReceived])
+  const onDisconnected = useCallback(() => {
+    objects.current.clear()
+    pendingObjects.current.clear()
+    pendingChanges.current.clear()
+    streaming.current = false
+  }, [])
+
+  const onStreamingStarted = useCallback(() => {
+    streaming.current = true
+  }, [])
 
   const {
-    insertObject,
-    updateObject,
-    deleteObject,
+    applyChange: applyChangeToBackend,
   } = useProtocol({
     boardId,
     sessionId,
     username,
-    onObjectInserted,
-    onObjectUpdated,
-    onObjectDeleted,
+    onChangeReceived,
+    onDisconnected,
+    onStreamingStarted,
   })
 
   const applyChange = useCallback((change: Change) => {
     materializeChange(change)
     pendChange(change)
-    if (change.type === 'Delete') {
-      deleteObject(change.id)
-    } else if (change.type === 'Update') {
-      updateObject(change.id, change.key, change.value)
-    } else if (change.type === 'Insert') {
-      insertObject(change.id, change.object)
-    }
-  }, [materializeChange, pendChange, deleteObject])
+    applyChangeToBackend(change)
+  }, [materializeChange, pendChange, applyChangeToBackend])
 
   const read = useCallback((key: string) => {
     return objects.current.get(key) ?? new DefaultValue()
   }, [])
 
   const write = useCallback(({ diff }: WriteInterface) => {
+    if (!streaming.current) {
+      diff.forEach((_, id) => {
+        emitter.current.dispatchEvent(new CustomEvent('objectreverted', { detail: id }))
+      })
+      return
+    }
+
     diff.forEach((newValue, id) => {
       if (newValue instanceof DefaultValue && objects.current.has(id)) {
         applyChange({ type: 'Delete', id })
@@ -196,6 +199,10 @@ export const ObjectProtocolSync = ({
   ])
 
   const listen = useCallback(({ updateItem }: ListenInterface) => {
+    const revertListener = (event: Event) => {
+      const id = (event as CustomEvent).detail
+      updateItem(id, objects.current.get(id) ?? new DefaultValue())
+    }
     const updateListener = (event: Event) => {
       const change = (event as CustomEvent).detail
       updateItem(change.id, change.object)
@@ -205,10 +212,12 @@ export const ObjectProtocolSync = ({
       updateItem(change.id, new DefaultValue())
     }
 
+    emitter.current.addEventListener('objectreverted', revertListener)
     emitter.current.addEventListener('objectchanged', updateListener)
     emitter.current.addEventListener('objectdeleted', deleteListener)
 
     return () => {
+      emitter.current.removeEventListener('objectreverted', revertListener)
       emitter.current.removeEventListener('objectchanged', updateListener)
       emitter.current.removeEventListener('objectdeleted', deleteListener)
     }
@@ -240,12 +249,16 @@ export const ObjectIdsProtocolSync = ({
   const objectIds = useRef<Set<string>>(new Set())
   const emitter = useRef(new EventTarget())
 
-  const onObjectInserted = useCallback((id: string) => {
-    objectIds.current.add(id)
-    emitter.current.dispatchEvent(new CustomEvent('changed'))
-  }, [])
-  const onObjectDeleted = useCallback((id: string) => {
-    objectIds.current.delete(id)
+  const onChangeReceived = useCallback((change: Change) => {
+    switch (change.type) {
+      case 'Insert': {
+        objectIds.current.add(change.id)
+        break
+      }
+      case 'Delete': {
+        objectIds.current.delete(change.id)
+      }
+    }
     emitter.current.dispatchEvent(new CustomEvent('changed'))
   }, [])
 
@@ -253,8 +266,7 @@ export const ObjectIdsProtocolSync = ({
     boardId,
     sessionId,
     username,
-    onObjectInserted,
-    onObjectDeleted,
+    onChangeReceived,
   })
 
   const read = useCallback((id: string) => {
@@ -295,7 +307,6 @@ export const PresenceProtocolSync = ({
   const otherUsernames = useRef(new Map())
   const otherCursors = useRef(new Map())
   const myCursor = useRef<Point | null>(null)
-
   const emitter = useRef(new EventTarget())
 
   const {
@@ -366,6 +377,65 @@ export const PresenceProtocolSync = ({
       emitter.current.removeEventListener('usernamechanged', usernameChangedHandler)
       emitter.current.removeEventListener('cursorchanged', cursorChangedHandler)
     }
+  }, [])
+
+  return (
+    <RecoilSync
+      storeKey={storeKey}
+      read={read}
+      write={write}
+      listen={listen}>
+      {children}
+    </RecoilSync>
+  )
+}
+
+export const ConnectedProtocolSync = ({
+  children,
+  storeKey,
+  boardId,
+  sessionId,
+  username,
+}: PropsWithChildren<{
+  storeKey: string,
+  boardId: string,
+  sessionId: string,
+  username: string,
+}>) => {
+  const connected = useRef(false)
+  const emitter = useRef(new EventTarget())
+  const onDisconnected = useCallback(() => {
+    connected.current = false
+    emitter.current.dispatchEvent(new CustomEvent('changed'))
+  }, [])
+  const onStreamingStarted = useCallback(() => {
+    connected.current = true
+    emitter.current.dispatchEvent(new CustomEvent('changed'))
+  }, [])
+
+  useProtocol({
+    boardId,
+    sessionId,
+    username,
+    onDisconnected,
+    onStreamingStarted,
+  })
+
+  const read = useCallback((key: string) => {
+    if (key === 'Connected') return connected.current
+    else return new DefaultValue()
+  }, [])
+
+  const write = useCallback(() => {
+    emitter.current.dispatchEvent(new CustomEvent('changed'))
+  }, [])
+
+  const listen = useCallback(({ updateItem }: ListenInterface) => {
+    const listener = () => {
+      updateItem('Connected', connected.current)
+    }
+    emitter.current.addEventListener('changed', listener)
+    return () => emitter.current.removeEventListener('changed', listener)
   }, [])
 
   return (

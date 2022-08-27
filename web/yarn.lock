@@ -374,7 +374,12 @@
   dependencies:
     "@react-hook/latest" "^1.0.2"
 
-"@recoiljs/refine@0.1.0", "@recoiljs/refine@^0.1.0":
+"@recoiljs/refine@0.1.1":
+  version "0.1.1"
+  resolved "https://registry.yarnpkg.com/@recoiljs/refine/-/refine-0.1.1.tgz#282a1cc603bac7db08eea571bbee757f9cf7b55c"
+  integrity sha512-ry02rHswJePYkH1o8K99qL4O6TBntF9/g7W5wXVwaOUrIJEZUGfl/I3+btPXbUgyyEZvNs5xcwvOw13AufmFQw==
+
+"@recoiljs/refine@^0.1.0":
   version "0.1.0"
   resolved "https://registry.yarnpkg.com/@recoiljs/refine/-/refine-0.1.0.tgz#915a60801334b11bf4245231b734e31bab39bcda"
   integrity sha512-5f5ohe6Fc24tW4esoEgCBl+E4qUe/C1nJUAhkt+2xQ3//OCkvpsQ/YrPY6B+DHjoKsrfO0RLekxSQcUlWz2UUA==

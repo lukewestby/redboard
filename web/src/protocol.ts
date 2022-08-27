@@ -1,31 +1,33 @@
 import React from 'react'
 
+import.meta.hot?.on('vite:beforeUpdate', () => {
+  Protocol._stopAll()
+})
+
 export const useProtocol = ({
   boardId,
   sessionId,
   username,
-  onObjectInserted,
-  onObjectUpdated,
-  onObjectDeleted,
+  onChangeReceived,
   onUserJoined,
   onUserLeft,
   onUserCursorChanged,
   onUserCursorCleared,
+  onDisconnected,
+  onStreamingStarted,
 }: {
   boardId: string,
   sessionId: string,
   username: string,
-  onObjectInserted?: (id: string, object: JsonObject, source: string) => void,
-  onObjectUpdated?: (id: string, key: string, value: Json, source: string) => void,
-  onObjectDeleted?: (id: string, source: string) => void,
+  onChangeReceived?: (change: Change, sessionId: string) => void,
   onUserJoined?: (id: string, username: string) => void,
   onUserLeft?: (id: string) => void,
   onUserCursorChanged?: (id: string, x: number, y: number) => void,
   onUserCursorCleared?: (id: string) => void,
+  onDisconnected?: () => void,
+  onStreamingStarted?: () => void,
 }): {
-  insertObject: (id: string, object: JsonObject) => void,
-  updateObject: (id: string, key: string, value: Json) => void,
-  deleteObject: (id: string) => void,
+  applyChange: (change: Change) => void,
   updateCursor: (x: number, y: number) => void,
   clearCursor: () => void,
 } => {
@@ -34,34 +36,35 @@ export const useProtocol = ({
   }, [boardId, sessionId])
 
   React.useEffect(() => {
-    const unsubInserted = onObjectInserted && instance.subscribe('objectinserted', ({ id, object, source }) => onObjectInserted?.(id, object, source))
-    const unsubUpdated = onObjectUpdated && instance.subscribe('objectupdated', ({ id, key, value, source }) => onObjectUpdated?.(id, key, value, source))
-    const unsubDeleted = onObjectDeleted && instance.subscribe('objectdeleted', ({ id, source }) => onObjectDeleted?.(id, source))
+    const unsubChangeReceived = onChangeReceived && instance.subscribe('changereceived', ({ change, source }) => onChangeReceived?.(change, source))
     const unsubUserJoined = onUserJoined && instance.subscribe('userjoined', ({ sessionId, username }) => onUserJoined?.(sessionId, username))
     const unsubUserLeft = onUserLeft && instance.subscribe('userleft', ({ sessionId }) => onUserLeft?.(sessionId))
     const unsubCursorChanged = onUserCursorChanged && instance.subscribe('usercursorchanged', ({ sessionId, x, y }) => onUserCursorChanged?.(sessionId, x, y))
     const unsubCursorCleared = onUserCursorCleared && instance.subscribe('usercursorleft', ({ sessionId }) => onUserCursorCleared?.(sessionId))
-
+    const unsubDisconnected = onDisconnected && instance.subscribe('disconnected', onDisconnected)
+    const unsubStreamingStarted = onStreamingStarted && instance.subscribe('streamingstarted', onStreamingStarted)
     return () => {
-      unsubInserted?.()
-      unsubUpdated?.()
-      unsubDeleted?.()
+      unsubChangeReceived?.()
       unsubUserJoined?.()
       unsubUserLeft?.()
       unsubCursorChanged?.()
       unsubCursorCleared?.()
+      unsubDisconnected?.()
+      unsubStreamingStarted?.()
     }
   }, [
     instance,
-    onObjectInserted,
-    onObjectUpdated,
-    onObjectDeleted,
+    onChangeReceived,
+    onUserJoined,
+    onUserJoined,
+    onUserCursorChanged,
+    onUserCursorCleared,
+    onDisconnected,
+    onStreamingStarted,
   ])
 
   return {
-    insertObject: (id, object) => instance.insertObject(id, object),
-    updateObject: (id, key, value) => instance.updateObject(id, key, value),
-    deleteObject: (id) => instance.deleteObject(id),
+    applyChange: (change) => instance.applyChange(change),
     updateCursor: (x, y) => instance.updateCursor(x, y),
     clearCursor: () => instance.clearCursor(),
   }
@@ -82,6 +85,7 @@ type ProtocolState =
   | { type: 'Starting' }
   | { type: 'Snapshotting', objects: Array<[string, Record<string, any>]> }
   | { type: 'Streaming' }
+  | { type: 'Stopped' }
 
 export type Change =
   | { type: 'Insert', id: string, object: JsonObject }
@@ -106,6 +110,13 @@ type ServerMessage =
   | { type: 'UserCursorChanged', session_id: string, x: number, y: number }
   | { type: 'UserCursorLeft', session_id: string }
 
+type Work =
+  | ServerMessage
+  | 'Connect'
+  | 'Opened'
+  | 'Closed'
+  | 'Stop'
+
 class Protocol {
   _boardId: string
   _sessionId: string
@@ -118,7 +129,7 @@ class Protocol {
   _lastMessage: ServerMessage | null
   _pingInterval: number | null
   _working: boolean
-  _workQueue: Array<ServerMessage | 'Connect' | 'Opened' | 'Closed'>
+  _workQueue: Array<Work>
 
   private static _registry: Map<string, Protocol> = new Map()
   public static get(boardId: string, sessionId: string, username: string): Protocol {
@@ -128,6 +139,11 @@ class Protocol {
       this._registry.set(boardId + '|' + sessionId, current)
     }
     return current
+  }
+  public static _stopAll() {
+    this._registry.forEach((instance) => {
+      instance._stop()
+    })
   }
 
   private constructor(boardId: string, sessionId: string, username: string) {
@@ -146,28 +162,8 @@ class Protocol {
     this._pushWork('Connect')
   }
 
-  public insertObject(id: string, object: JsonObject) {
-    const change = { type: 'Insert' as const, id, object }
+  public applyChange(change: Change) {
     this._send({ type: 'ApplyChange', change })
-    this._emitter.dispatchEvent(new CustomEvent('objectinserted', {
-      detail: { id, object, source: this._sessionId },
-    }))
-  }
-
-  public updateObject(id: string, key: string, value: Json) {
-    const change = { type: 'Update' as const, id, key, value }
-    this._send({ type: 'ApplyChange', change })
-    this._emitter.dispatchEvent(new CustomEvent('objectupdated', {
-      detail: { id, key, value, source: this._sessionId },
-    }))
-  }
-
-  public deleteObject(id: string) {
-    const change = { type: 'Delete' as const, id }
-    this._send({ type: 'ApplyChange', change })
-    this._emitter.dispatchEvent(new CustomEvent('objectdeleted', {
-      detail: { id, source: this._sessionId },
-    }))
   }
 
   public updateCursor(x: number, y: number) {
@@ -186,7 +182,11 @@ class Protocol {
     return () => this._emitter.removeEventListener(key, listener)
   }
 
-  private _pushWork(work: ServerMessage | 'Connect' | 'Opened' | 'Closed') {
+  private _stop() {
+    this._pushWork('Stop')
+  }
+
+  private _pushWork(work: Work) {
     this._workQueue.push(work)
     if (this._working) return
     this._working = true
@@ -206,7 +206,6 @@ class Protocol {
 
   private async _connect(): Promise<WebSocket> {
     while (true) {
-      console.count('reconnecting')
       try {
         return await this._initializeSocket(this._boardId, this._sessionId)
       } catch {
@@ -225,7 +224,21 @@ class Protocol {
     })
   }
 
-  private _step = async (message: ServerMessage | 'Connect' | 'Opened' | 'Closed') => {
+  private _step = async (message: Work) => {
+    console.log(message)
+
+    if (message === 'Stop') {
+      this._state = { type: 'Stopped' }
+      this._emitter.dispatchEvent(new CustomEvent('disconnected'))
+      this._websocket?.close()
+      this._websocket = null
+      return
+    }
+
+    if (this._state.type === 'Stopped') {
+      return
+    }
+
     if (message === 'Connect') {
       this._websocket = await this._connect()
       this._pushWork('Opened')
@@ -236,6 +249,7 @@ class Protocol {
       this._websocket = null
       this._state = { type: 'Disconnected' }
       window.clearInterval(this._pingInterval ?? undefined)
+      this._emitter.dispatchEvent(new CustomEvent('disconnected'))
       this._wait(2000)
       this._pushWork('Connect')
       return
@@ -298,27 +312,24 @@ class Protocol {
 
     if (this._state.type === 'Snapshotting' && message.type === 'SnapshotFinished') {
       this._state.objects.forEach(([id, object]) => {
-        this._emitter.dispatchEvent(new CustomEvent('objectinserted', {
-          detail: { id, object, source: this._sessionId }
+        this._emitter.dispatchEvent(new CustomEvent('changereceived', {
+          detail: {
+            change: { type: 'Insert', id, object },
+            source: this._sessionId
+          }
         }))
       })
       this._state = { type: 'Streaming' }
+      this._emitter.dispatchEvent(new CustomEvent('streamingstarted'))
     }
 
     if (this._state.type === 'Streaming' && message.type === 'ChangeAccepted') {
-      if (message.change.type === 'Delete') {
-        this._emitter.dispatchEvent(new CustomEvent('objectdeleted', {
-          detail: { id: message.change.id, source: message.session_id }
-        }))
-      } else if (message.change.type === 'Update') {
-        this._emitter.dispatchEvent(new CustomEvent('objectupdated', {
-          detail: { id: message.change.id, key: message.change.key, value: message.change.value, source: message.session_id },
-        }))
-      } else if (message.change.type === 'Insert') {
-        this._emitter.dispatchEvent(new CustomEvent('objectinserted', {
-          detail: { id: message.change.id, object: message.change.object, source: message.session_id },
-        }))
-      }
+      this._emitter.dispatchEvent(new CustomEvent('changereceived', {
+        detail: {
+          change: message.change,
+          source: message.session_id,
+        }
+      }))
     }
   }
 
