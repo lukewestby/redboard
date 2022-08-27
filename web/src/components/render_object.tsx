@@ -39,15 +39,9 @@ const RenderObject = ({
     }
   }
 
-  console.log(objectId)
-
   if (child === null) return null
 
-  return (
-    <div onClick={(event) => event.stopPropagation()}>
-      {child}
-    </div>
-  )
+  return child
 }
 
 export default RenderObject

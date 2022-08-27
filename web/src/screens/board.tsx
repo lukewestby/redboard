@@ -80,8 +80,8 @@ const ActualBoard = ({
 
   useEffect(() => {
     const listener = () => setSelectedObjectId(null)
-    window.addEventListener('click', listener)
-    return () => window.removeEventListener('click', listener)
+    window.addEventListener('pointerdown', listener)
+    return () => window.removeEventListener('pointerdown', listener)
   }, [setSelectedObjectId])
 
   useEffect(() => {
@@ -117,7 +117,7 @@ const ActualBoard = ({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       onMouseMove={onMouseMove}>
-      <div style={{ width: '100%', height: '100%', position: 'absolute' }}>
+      <div className="w-full h-full absolute z-0">
         {[...objectIds].map((objectId) => (
           <Suspense key={objectId}>
             <RenderObject objectId={objectId} />
@@ -126,7 +126,7 @@ const ActualBoard = ({
       </div>
       <div
         ref={controlsRef}
-        className="absolute bottom-12 w-full flex items-center justify-center pointer-events-none">
+        className="absolute bottom-12 w-full flex items-center justify-center pointer-events-none z-10">
         <div
           onClick={(event) => event.stopPropagation()}
           className="bg-gray-900 text-white rounded-md p-2 flex divide-x divide-white pointer-events-auto">

@@ -126,7 +126,7 @@ export const squares$ = selectorFamily<Square, string>({
 
 export type Circle = {
   type: 'Circle',
-  center: Point,
+  position: Point,
   fill: string,
   radius: number,
   layer: number,
@@ -134,7 +134,7 @@ export type Circle = {
 export const Circle = {
   default: (): Circle => ({
     type: 'Circle',
-    center: { x: 100, y: 100 },
+    position: { x: 100, y: 100 },
     fill: '#777777',
     radius: 50,
     layer: 0,
@@ -156,7 +156,7 @@ export const circles$ = selectorFamily<Circle, string>({
 
 export type Star = {
   type: 'Star',
-  center: Point,
+  position: Point,
   fill: string,
   size: number,
   layer: number,
@@ -164,7 +164,7 @@ export type Star = {
 export const Star = {
   default: (): Star => ({
     type: 'Star' as const,
-    center: { x: 200, y: 200 },
+    position: { x: 200, y: 200 },
     fill: '#777777',
     size: 100,
     layer: 0,
@@ -185,7 +185,7 @@ export const stars$ = selectorFamily<Star, string>({
 
 export type Triangle = {
   type: 'Triangle',
-  center: Point,
+  position: Point,
   fill: string,
   size: number,
   layer: number,
@@ -193,7 +193,7 @@ export type Triangle = {
 export const Triangle = {
   default: (): Triangle => ({
     type: 'Triangle' as const,
-    center: { x: 200, y: 200 },
+    position: { x: 200, y: 200 },
     fill: '#777777',
     size: 100,
     layer: 0,
@@ -245,18 +245,6 @@ export const textboxes$ = selectorFamily<Textbox, string>({
   },
   set: (objectId) => ({ set }, newValue) => {
     set(objects$(objectId), newValue)
-  }
-})
-
-export const maxLayer$ = selector<number>({
-  key: 'MaxLayer',
-  get: ({ get }) => {
-    const boardId = get(boardId$)
-    const objectIds = get(objectIds$(boardId))
-    const layers = [...objectIds]
-      .map((objectId) => get(objects$(objectId)))
-      .map((object) => typeof object.layer === 'number' ? object.layer : 0)
-    return layers.length === 0 ? 0 : Math.max(...layers)
   }
 })
 

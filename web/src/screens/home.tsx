@@ -31,8 +31,8 @@ const Home = () => {
   return (
     <Modal isOpen={username === null}>
       <div className="px-12 py-16 text-gray-900 w-108 font-archivo">
-        <h3 className="text-3xl font-semibold text-center pb-2">Welcome to redboard!</h3>
-        <p className="text-gray-500 text-center pb-12">Tell use your name to get started</p>
+        <h3 className="text-3xl font-semibold text-center pb-2">Welcome to RedBoard!</h3>
+        <p className="text-gray-500 text-center pb-12">Tell us your name to get started</p>
         <input
           className="block w-full border-3 border-gray-900 rounded-md px-4 py-3 mb-4 focus:outline-none focus:border-red-900"
           type="text"

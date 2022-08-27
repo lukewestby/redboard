@@ -374,15 +374,10 @@
   dependencies:
     "@react-hook/latest" "^1.0.2"
 
-"@recoiljs/refine@0.1.1":
+"@recoiljs/refine@0.1.1", "@recoiljs/refine@^0.1.1":
   version "0.1.1"
   resolved "https://registry.yarnpkg.com/@recoiljs/refine/-/refine-0.1.1.tgz#282a1cc603bac7db08eea571bbee757f9cf7b55c"
   integrity sha512-ry02rHswJePYkH1o8K99qL4O6TBntF9/g7W5wXVwaOUrIJEZUGfl/I3+btPXbUgyyEZvNs5xcwvOw13AufmFQw==
-
-"@recoiljs/refine@^0.1.0":
-  version "0.1.0"
-  resolved "https://registry.yarnpkg.com/@recoiljs/refine/-/refine-0.1.0.tgz#915a60801334b11bf4245231b734e31bab39bcda"
-  integrity sha512-5f5ohe6Fc24tW4esoEgCBl+E4qUe/C1nJUAhkt+2xQ3//OCkvpsQ/YrPY6B+DHjoKsrfO0RLekxSQcUlWz2UUA==
 
 "@scena/dragscroll@^1.2.0":
   version "1.2.1"
@@ -1912,18 +1907,25 @@ readdirp@~3.6.0:
   dependencies:
     picomatch "^2.2.1"
 
-recoil-sync@0.1.0:
-  version "0.1.0"
-  resolved "https://registry.yarnpkg.com/recoil-sync/-/recoil-sync-0.1.0.tgz#4bdbadff3e205036151e766d27118d2baec82ecf"
-  integrity sha512-0D1cb1EJbWk1gDyZ3jA7nrRNpnLe9tw5lo8sKlheKXL17iOih5m96WPGLLy4j/Kl444xA2X8EERXw6Q6ml34PQ==
+recoil-sync@0.1.1:
+  version "0.1.1"
+  resolved "https://registry.yarnpkg.com/recoil-sync/-/recoil-sync-0.1.1.tgz#c20df122077b45c7b3dba9ed30f7f03b15f8b79c"
+  integrity sha512-+ZVMT4sLIyUFif7EeIlJjOLdiMarF3M0E9uJWQG9vK5yoFLrXzY8qR0fzIH36ofOwpPUmX4fw90YkV29X3Ts+w==
   dependencies:
-    "@recoiljs/refine" "^0.1.0"
+    "@recoiljs/refine" "^0.1.1"
     transit-js "^0.8.874"
 
-recoil@*, recoil@0.7.4:
+recoil@*:
   version "0.7.4"
   resolved "https://registry.yarnpkg.com/recoil/-/recoil-0.7.4.tgz#d6508fa656d9c93e66fdf334e1f723a9e98801cf"
   integrity sha512-sCXvQGMfSprkNU4ZRkJV4B0qFQSURJMgsICqY1952WRlg66NMwYqi6n67vhnhn0qw4zHU1gHXJuMvRDaiRNFZw==
+  dependencies:
+    hamt_plus "1.0.2"
+
+recoil@0.7.5:
+  version "0.7.5"
+  resolved "https://registry.yarnpkg.com/recoil/-/recoil-0.7.5.tgz#9a33a03350cfd99e08bdd5b73bfc8b8b9ee751b9"
+  integrity sha512-GVShsj5+M/2GULWBs5WBJGcsNis/d3YvDiaKjYh3mLKXftjtmk9kfaQ8jwjoIXySCwn8/RhgJ4Sshwgzj2UpFA==
   dependencies:
     hamt_plus "1.0.2"
 

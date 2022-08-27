@@ -1,8 +1,6 @@
 import React from 'react'
 
-import.meta.hot?.on('vite:beforeUpdate', () => {
-  Protocol._stopAll()
-})
+import.meta.hot?.decline()
 
 export const useProtocol = ({
   boardId,
@@ -85,7 +83,6 @@ type ProtocolState =
   | { type: 'Starting' }
   | { type: 'Snapshotting', objects: Array<[string, Record<string, any>]> }
   | { type: 'Streaming' }
-  | { type: 'Stopped' }
 
 export type Change =
   | { type: 'Insert', id: string, object: JsonObject }
@@ -115,7 +112,6 @@ type Work =
   | 'Connect'
   | 'Opened'
   | 'Closed'
-  | 'Stop'
   | 'Wait'
 
 class Protocol {
@@ -133,6 +129,7 @@ class Protocol {
   _workQueue: Array<Work>
 
   private static _registry: Map<string, Protocol> = new Map()
+
   public static get(boardId: string, sessionId: string, username: string): Protocol {
     let current = this._registry.get(boardId + '|' + sessionId)
     if (!current) {
@@ -140,11 +137,6 @@ class Protocol {
       this._registry.set(boardId + '|' + sessionId, current)
     }
     return current
-  }
-  public static _stopAll() {
-    this._registry.forEach((instance) => {
-      instance._stop()
-    })
   }
 
   private constructor(boardId: string, sessionId: string, username: string) {
@@ -181,10 +173,6 @@ class Protocol {
     }
     this._emitter.addEventListener(key, listener)
     return () => this._emitter.removeEventListener(key, listener)
-  }
-
-  private _stop() {
-    this._pushWork('Stop')
   }
 
   private _pushWork(work: Work) {
@@ -228,21 +216,6 @@ class Protocol {
   }
 
   private _step = async (message: Work) => {
-    if (this._state.type === 'Stopped') {
-      return
-    }
-
-    console.log(message)
-
-    if (message === 'Stop') {
-      this._state = { type: 'Stopped' }
-      window.clearInterval(this._pingInterval ?? undefined)
-      this._emitter.dispatchEvent(new CustomEvent('disconnected'))
-      this._websocket?.close()
-      this._websocket = null
-      return
-    }
-
     if (message === 'Wait') {
       if (this._state.type !== 'Disconnected') return
       await this._wait(2000)

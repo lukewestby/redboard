@@ -72,6 +72,12 @@ export const ObjectProtocolSync = ({
   const emitter = useRef(new EventTarget())
 
   useEffect(() => {
+    return () => {
+      console.log('unmounting')
+    }
+  }, [])
+
+  useEffect(() => {
     objects.current.clear()
     pendingObjects.current.clear()
     pendingChanges.current.clear()
@@ -224,13 +230,15 @@ export const ObjectProtocolSync = ({
   }, [])
 
   return (
-    <RecoilSync
-      storeKey={storeKey}
-      read={read}
-      write={write}
-      listen={listen}>
-      {children}
-    </RecoilSync>
+    <ErrorBoundary>
+      <RecoilSync
+        storeKey={storeKey}
+        read={read}
+        write={write}
+        listen={listen}>
+        {children}
+      </RecoilSync>
+    </ErrorBoundary>
   )
 }
 
@@ -447,4 +455,15 @@ export const ConnectedProtocolSync = ({
       {children}
     </RecoilSync>
   )
+}
+
+class ErrorBoundary extends React.Component<PropsWithChildren<{}>> {
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.log(error)
+    console.log(errorInfo)
+    debugger
+  }
+  render() {
+    return this.props.children
+  }
 }

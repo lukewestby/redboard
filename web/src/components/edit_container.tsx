@@ -1,15 +1,7 @@
-import React, { PropsWithChildren, useCallback, useMemo, PointerEvent as ReactPointerEvent, useState, useEffect, useRef } from 'react'
+import React, { useCallback, useMemo, PointerEvent as ReactPointerEvent, useState, useEffect, useRef, ReactNode } from 'react'
 import clsx from 'clsx'
 import { Point } from '../core'
 import { flushSync } from 'react-dom'
-
-type CornerDirection =
-  | 'NorthEast'
-  | 'SouthEast'
-
-type SideDirection =
-  | 'North'
-  | 'East'
 
 const EditContainer = ({
   width,
@@ -20,11 +12,12 @@ const EditContainer = ({
   fixedAspectRatio,
   layer,
   dragDisabled,
+  actions,
   onSelected,
   onDragEnd,
   onResizeEnd,
   children,
-}: PropsWithChildren<{
+}: {
   width: number,
   height: number,
   offsetX: number,
@@ -33,21 +26,23 @@ const EditContainer = ({
   fixedAspectRatio: boolean,
   layer: number,
   dragDisabled: boolean,
+  actions: Array<ReactNode>,
   onSelected: () => void,
   onDragEnd: (point: Point) => void,
   onResizeEnd: (point: Point) => void,
-}>) => {
+  children: (callbacks: {
+    onPointerDown: (event: React.PointerEvent<Element>) => void,
+  }) => ReactNode,
+}) => {
   const firstRender = useRef(true)
 
   const [dragging, setDragging] = useState(false)
   const [dragDelta, setDragDelta] = useState({ x: 0, y: 0 })
-  const [handleDragging, setHandleDragging] = useState(false)
-  const cornerDirection = useRef<CornerDirection | null>(null)
-  const sideDirection = useRef<SideDirection | null>(null)
+  const [resizing, setResizing] = useState(false)
   const [resizeDelta, setResizeDelta] = useState({ x: 0, y: 0 })
 
   const [actualWidth, actualHeight] = useMemo(() => {
-    if (!handleDragging) {
+    if (!resizing) {
       return [width, height]
     }
 
@@ -59,7 +54,7 @@ const EditContainer = ({
     } else {
       return [actualWidth, actualHeight]
     }
-  }, [width, height, fixedAspectRatio, handleDragging, resizeDelta])
+  }, [width, height, fixedAspectRatio, resizing, resizeDelta])
 
   const translate = useMemo(() => {
     const x = offsetX + (dragging ? dragDelta.x : 0)
@@ -67,7 +62,10 @@ const EditContainer = ({
     return `${x}px ${y}px`
   }, [dragging, offsetX, offsetY, dragDelta])
 
-  const onPointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+  const onPointerDown = useCallback((event: React.PointerEvent<Element>) => {
+    event.stopPropagation()
+    event.preventDefault()
+    event.nativeEvent.stopImmediatePropagation()
     if (dragDisabled) return
     onSelected()
     setDragging(true)
@@ -76,10 +74,10 @@ const EditContainer = ({
   const onWindowPointerMove = useCallback((event: PointerEvent) => {
     if (dragging) {
       setDragDelta((previous) => ({
-        x: previous.x + (sideDirection.current === 'East' || sideDirection.current === null ? event.movementX : 0),
-        y: previous.y + (sideDirection.current === 'North' || sideDirection.current === null ? event.movementY : 0),
+        x: previous.x + event.movementX,
+        y: previous.y + event.movementY,
       }))
-    } else if (handleDragging) {
+    } else if (resizing) {
       setResizeDelta((previous) => ({
         x: previous.x + event.movementX,
         y: previous.y + event.movementY,
@@ -87,38 +85,26 @@ const EditContainer = ({
     }
   }, [
     dragging,
-    handleDragging,
+    resizing,
     setDragDelta,
     setResizeDelta,
   ])
 
-  const onWindowPointerUp = useCallback((event: PointerEvent) => {
+  const onWindowPointerUp = useCallback(() => {
     flushSync(() => {
       setDragging(false)
-      setHandleDragging(false)
+      setResizing(false)
     })
-  }, [setDragging, setHandleDragging])
+  }, [setDragging, setResizing])
 
-  const onCornerHandlePointerDown = useCallback((direction: CornerDirection) => (event: ReactPointerEvent<HTMLDivElement>) => {
+  const onResizeHandlePointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     event.preventDefault()
     event.stopPropagation()
-    setHandleDragging(true)
-    cornerDirection.current = direction
-  }, [setHandleDragging])
-  const onNorthEastCornerHandlePointerDown = useMemo(() => onCornerHandlePointerDown('NorthEast'), [onCornerHandlePointerDown])
-  const onSouthEastCornerHandlePointerDown = useMemo(() => onCornerHandlePointerDown('SouthEast'), [onCornerHandlePointerDown])
-
-  const onSideHandlePointerDown = useCallback((direction: SideDirection) => (event: ReactPointerEvent<HTMLDivElement>) => {
-    event.preventDefault()
-    event.stopPropagation()
-    setHandleDragging(true)
-    sideDirection.current = direction
-  }, [setHandleDragging])
-  const onNorthSideHandlePointerDown = useMemo(() => onSideHandlePointerDown('North'), [onSideHandlePointerDown])
-  const onEastSideHandlePointerDown = useMemo(() => onSideHandlePointerDown('East'), [onSideHandlePointerDown])
+    setResizing(true)
+  }, [setResizing])
 
   useEffect(() => {
-    if (handleDragging || firstRender.current) return
+    if (resizing || firstRender.current) return
     if (resizeDelta.x === 0 && resizeDelta.y === 0) return
     const actualWidth = width + resizeDelta.x
     const actualHeight = height + resizeDelta.y
@@ -134,13 +120,12 @@ const EditContainer = ({
         y: actualHeight,
       })
     }
-  }, [handleDragging, onResizeEnd, fixedAspectRatio, resizeDelta, setResizeDelta])
+  }, [resizing, onResizeEnd, fixedAspectRatio, resizeDelta, setResizeDelta])
 
   useEffect(() => {
-    if (dragging) return
-    if (handleDragging) {
-      if (cornerDirection.current === 'NorthEast') document.documentElement.style.cursor = 'nesw-resize'
-      if (cornerDirection.current === 'SouthEast') document.documentElement.style.cursor = 'nwse-resize'
+    if (dragging || firstRender.current) return
+    if (resizing) {
+      document.documentElement.style.cursor = 'nwse-resize'
       window.addEventListener('pointermove', onWindowPointerMove)
       window.addEventListener('pointerup', onWindowPointerUp)
       return () => {
@@ -152,15 +137,14 @@ const EditContainer = ({
       firstRender.current = false
     } else {
       document.documentElement.style.cursor = ''
-      sideDirection.current = null
-      cornerDirection.current = null
       setResizeDelta({ x: 0, y: 0 })
     }
 
     return () => { }
   }, [
     dragging,
-    handleDragging,
+    resizing,
+    setResizing,
     setResizeDelta,
     onWindowPointerMove,
     onWindowPointerUp,
@@ -176,7 +160,7 @@ const EditContainer = ({
   }, [dragging, onDragEnd, dragDelta])
 
   useEffect(() => {
-    if (handleDragging) return
+    if (resizing) return
     if (dragging) {
       window.addEventListener('pointermove', onWindowPointerMove, { capture: true })
       window.addEventListener('pointerup', onWindowPointerUp, { capture: true })
@@ -195,7 +179,7 @@ const EditContainer = ({
 
     return () => { }
   }, [
-    handleDragging,
+    resizing,
     dragging,
     setDragDelta,
     onWindowPointerMove,
@@ -203,10 +187,13 @@ const EditContainer = ({
     onDragEnd,
   ])
 
+  const actualChildren = useMemo(() => {
+    return children({ onPointerDown })
+  }, [children, onPointerDown])
+
   return (
     <div
-      onPointerDown={onPointerDown}
-      className={clsx('absolute', {
+      className={clsx('absolute pointer-events-none', {
         'border border-blue-400': selected,
       })}
       style={{
@@ -217,41 +204,21 @@ const EditContainer = ({
         willChange: 'width height',
         zIndex: layer,
       }}>
-      {children}
+      {actualChildren}
       {selected && (
         <>
           <div
-            onPointerDown={onNorthEastCornerHandlePointerDown}
-            style={{ cursor: 'nesw-resize' }}
-            className="-bottom-1 -left-1 absolute z-20 w-2 h-2 bg-white border border-blue-400" />
-          <div
-            onPointerDown={onSouthEastCornerHandlePointerDown}
-            style={{ cursor: 'nwse-resize' }}
-            className="-top-1 -left-1 absolute z-20 w-2 h-2 bg-white border border-blue-400" />
-          <div
-            onPointerDown={onNorthEastCornerHandlePointerDown}
-            style={{ cursor: 'ne-resize' }}
-            className="-top-1 -right-1 absolute z-20 w-2 h-2 bg-white border border-blue-400" />
-          <div
-            onPointerDown={onSouthEastCornerHandlePointerDown}
+            onPointerDown={onResizeHandlePointerDown}
             style={{ cursor: 'nwse-resize ' }}
-            className="-bottom-1 -right-1 absolute z-20 w-2 h-2 bg-white border border-blue-400" />
+            className="pointer-events-auto -bottom-1.5 -right-1.5 absolute z-20 w-3 h-3 bg-white border border-blue-400" />
           <div
-            onPointerDown={onNorthSideHandlePointerDown}
-            style={{ cursor: 'ns-resize' }}
-            className="h-2 w-full -top-1 left-0 absolute z-10" />
-          <div
-            onPointerDown={onEastSideHandlePointerDown}
-            style={{ cursor: 'ew-resize' }}
-            className="h-full w-2 -left-1 top-0 absolute z-10" />
-          <div
-            onPointerDown={onNorthSideHandlePointerDown}
-            style={{ cursor: 'ns-resize' }}
-            className="h-2 w-full -bottom-1 left-0 absolute z-10" />
-          <div
-            onPointerDown={onEastSideHandlePointerDown}
-            style={{ cursor: 'ew-resize' }}
-            className="h-full w-2 -right-1 top-0 absolute z-10" />
+            className="pointer-events-auto absolute -top-14 h-10 flex text-white rounded-md bg-gray-900 divide-x divide-white"
+            onPointerDown={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+            }}>
+            {actions}
+          </div>
         </>
       )}
     </div>

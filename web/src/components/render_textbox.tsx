@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useRecoilState, useRecoilValue, useRecoilCallback } from 'recoil'
 import { textboxes$, objectSelected$ } from '../state'
 import { throttle } from 'throttle-debounce'
-import clsx from 'clsx'
 import EditContainer from './edit_container'
+import ColorPicker from './color_picker'
 import { Point } from '../core'
 
 const RenderTextbox = ({
@@ -30,20 +30,36 @@ const RenderTextbox = ({
       event.preventDefault()
       setEditing(false)
     }
-    window.addEventListener('mousedown', listener)
-    return () => window.removeEventListener('mousedown', listener)
+    window.addEventListener('pointerdown', listener)
+    return () => window.removeEventListener('pointerdown', listener)
   }, [editing])
 
   useEffect(() => {
     setTextboxContent(textbox.content)
   }, [textbox])
 
-  const onColorChangeThrottled = useCallback(throttle(100, (color: string) => {
-    setTextbox((old) => ({ ...old, color }))
-  }), [setTextbox])
-  const onColorChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    onColorChangeThrottled(event.target.value)
-  }, [onColorChangeThrottled])
+  const onColorChange = useRecoilCallback(({ set }) => (color: string) => {
+    set(textboxes$(objectId), (old) => ({ ...old, color }))
+  }, [objectId])
+
+  const onIncreaseFontSize = useRecoilCallback(({ set }) => () => {
+    set(textboxes$(objectId), (old) => ({ ...old, fontSize: old.fontSize + 2 }))
+  }, [objectId])
+
+  const onDecreaseFontSize = useRecoilCallback(({ set }) => () => {
+    set(textboxes$(objectId), (old) => ({ ...old, fontSize: old.fontSize - 2 }))
+  }, [objectId])
+
+  const onMoveForward = useRecoilCallback(({ set }) => () => {
+    set(textboxes$(objectId), (old) => ({ ...old, layer: old.layer + 1 }))
+  }, [objectId])
+
+  const onMoveBackward = useRecoilCallback(({ set }) => () => {
+    set(textboxes$(objectId), (old) => {
+      if (old.layer === 0) return old
+      return { ...old, layer: old.layer - 1 }
+    })
+  }, [objectId])
 
   const onContentChangeThrottled = useCallback(throttle(100, (content: string) => {
     setTextbox((old) => ({ ...old, content }))
@@ -65,6 +81,66 @@ const RenderTextbox = ({
     set(textboxes$(objectId), (previous) => ({ ...previous, width: dimensions.x, height: dimensions.y }))
   }, [objectId])
 
+  const actions = useMemo(() => [
+    <ColorPicker
+      key="color"
+      value={textbox.color}
+      onChange={onColorChange}
+    />,
+    <button
+      key="font_increase"
+      onClick={onIncreaseFontSize}
+      className="block p-2 h-full cursor-pointer text-white">
+      <span className="material-symbols-outlined">text_increase</span>
+    </button>,
+    <button
+      key="font_decrease"
+      onClick={onDecreaseFontSize}
+      className="block p-2 h-full cursor-pointer text-white ">
+      <span className="material-symbols-outlined">text_decrease</span>
+    </button>,
+    <button
+      key="move_forward"
+      className="block p-2 h-full"
+      onClick={onMoveForward}>
+      <span className="material-symbols-outlined">flip_to_front</span>
+    </button>,
+    <button
+      key="move_backward"
+      className="block p-2 h-full"
+      onClick={onMoveBackward}>
+      <span className="material-symbols-outlined">flip_to_back</span>
+    </button>
+  ], [textbox.color, onColorChange])
+
+  const renderChildren = useCallback(({
+    onPointerDown,
+  }: {
+    onPointerDown: (event: React.PointerEvent<Element>) => void,
+  }) => (
+    <textarea
+      onDoubleClick={() => setEditing(true)}
+      onPointerDown={(event) => {
+        console.log(editing)
+        if (editing) event.stopPropagation()
+        else onPointerDown(event)
+      }}
+      ref={textareaRef}
+      onKeyUp={(event) => {
+        editing && event.stopPropagation()
+      }}
+      onChange={onContentChange}
+      readOnly={!editing}
+      value={textboxContent}
+      className="pointer-events-auto p-2 h-full w-full overflow-hidden resize-none outline-none bg-transparent absolute rounded-md cursor-grab border border-dashed border-gray-200 p1"
+      style={{
+        fontSize: textbox.fontSize,
+        color: textbox.color,
+        cursor: editing ? 'text' : 'grab',
+        userSelect: editing ? 'none' : 'auto',
+      }} />
+  ), [setEditing, editing, textboxContent, onContentChange, textbox.fontSize, textbox.color])
+
   return (
     <EditContainer
       width={textbox.width}
@@ -77,60 +153,9 @@ const RenderTextbox = ({
       dragDisabled={editing}
       onSelected={onEditContainerSelected}
       onResizeEnd={onEditContainerResizeEnd}
-      onDragEnd={onEditContainerDragEnd}>
-      <div className="absolute w-full h-full rounded-md cursor-grab border border-dashed border-gray-200">
-        {textboxSelected && (
-          <div className="absolute -top-14 h-10 rounded-md bg-gray-900 px-2 overflow-hidden flex divide-x divide-x-white">
-            <div className="pr-2 py-2">
-              <div
-                className="border border-white rounded-full w-6 h-6 relative"
-                style={{ backgroundColor: textbox.color }}>
-              </div>
-              <input
-                type="color"
-                className="absolute h-8 w-8 block appearance-none top-2 left-2 bg-transparent cursor-pointer"
-                value={textbox.color}
-                onChange={onColorChange} />
-            </div>
-            <div className="p-2">
-              <button
-                onClick={() => setTextbox((old) => ({ ...old, fontSize: old.fontSize + 2 }))}
-                className="bg-transparent w-8 cursor-pointer text-white">
-                <span className="material-symbols-outlined">text_increase</span>
-              </button>
-            </div>
-            <div className="pl-2 py-2">
-              <button
-                onClick={() => setTextbox((old) => ({ ...old, fontSize: old.fontSize - 2 }))}
-                className="bg-transparent w-8 cursor-pointer text-white">
-                <span className="material-symbols-outlined">text_decrease</span>
-              </button>
-            </div>
-          </div>
-        )}
-        <div
-          className="h-full w-full p-1"
-          onDoubleClick={() => setEditing(true)}
-          onMouseDown={(event) => editing && event.stopPropagation()}>
-          <textarea
-            ref={textareaRef}
-            onKeyUp={(event) => {
-              editing && event.stopPropagation()
-            }}
-            onChange={onContentChange}
-            readOnly={!editing}
-            value={textboxContent}
-            className={clsx('h-full w-full overflow-hidden resize-none outline-none bg-transparent', {
-              'cursor-text': editing,
-              'cursor-pointer': !editing,
-            })}
-            style={{
-              fontSize: textbox.fontSize,
-              color: textbox.color,
-            }}>
-          </textarea>
-        </div>
-      </div>
+      onDragEnd={onEditContainerDragEnd}
+      actions={actions}>
+      {renderChildren}
     </EditContainer>
   )
 }
