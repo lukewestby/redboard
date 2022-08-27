@@ -4,7 +4,7 @@ use futures::{
     sink::SinkExt,
     stream::{SplitSink, SplitStream, Stream, StreamExt},
 };
-use std::{any::Any, error::Error as _, pin::Pin, sync::Arc};
+use std::{error::Error as _, pin::Pin, sync::Arc};
 use tokio::sync::Mutex;
 
 use crate::message::{ClientMessage, ServerMessage};

@@ -116,6 +116,7 @@ type Work =
   | 'Opened'
   | 'Closed'
   | 'Stop'
+  | 'Wait'
 
 class Protocol {
   _boardId: string
@@ -204,44 +205,54 @@ class Protocol {
     setTimeout(this._doWork)
   }
 
-  private async _connect(): Promise<WebSocket> {
-    while (true) {
-      try {
-        return await this._initializeSocket(this._boardId, this._sessionId)
-      } catch {
-        await this._wait(2000)
-      }
+  private _connect(): WebSocket {
+    let closed = false
+    const socket = new WebSocket(`ws://localhost:3001/board/${this._boardId}?session_id=${this._sessionId}`)
+    const closedListener = () => {
+      if (closed) return
+      closed = true
+      this._pushWork('Closed')
     }
-  }
-
-  private _initializeSocket(boardId: string, sessionId: string): Promise<WebSocket> {
-    return new Promise((resolve, reject) => {
-      const socket = new WebSocket(`ws://localhost:3001/board/${boardId}?session_id=${sessionId}`)
-      socket.addEventListener('message', (event) => this._pushWork(JSON.parse(event.data) as ServerMessage))
-      socket.addEventListener('open', () => resolve(socket))
-      socket.addEventListener('close', () => this._pushWork('Closed'))
-      socket.addEventListener('error', () => reject(), { once: true })
-    })
+    const openedListener = () => {
+      if (closed) return
+      this._pushWork('Opened')
+    }
+    const messageListener = (event: MessageEvent) => {
+      this._pushWork(JSON.parse(event.data) as ServerMessage)
+    }
+    socket.addEventListener('message', messageListener)
+    socket.addEventListener('open', openedListener)
+    socket.addEventListener('close', closedListener)
+    socket.addEventListener('error', closedListener)
+    return socket
   }
 
   private _step = async (message: Work) => {
+    if (this._state.type === 'Stopped') {
+      return
+    }
+
     console.log(message)
 
     if (message === 'Stop') {
       this._state = { type: 'Stopped' }
+      window.clearInterval(this._pingInterval ?? undefined)
       this._emitter.dispatchEvent(new CustomEvent('disconnected'))
       this._websocket?.close()
       this._websocket = null
       return
     }
 
-    if (this._state.type === 'Stopped') {
+    if (message === 'Wait') {
+      if (this._state.type !== 'Disconnected') return
+      await this._wait(2000)
       return
     }
 
     if (message === 'Connect') {
-      this._websocket = await this._connect()
-      this._pushWork('Opened')
+      if (this._state.type !== 'Disconnected') return
+      this._websocket = this._connect()
+      this._state = { type: 'Starting' }
       return
     }
 
@@ -250,7 +261,7 @@ class Protocol {
       this._state = { type: 'Disconnected' }
       window.clearInterval(this._pingInterval ?? undefined)
       this._emitter.dispatchEvent(new CustomEvent('disconnected'))
-      this._wait(2000)
+      this._pushWork('Wait')
       this._pushWork('Connect')
       return
     }
@@ -259,7 +270,6 @@ class Protocol {
 
     if (message === 'Opened') {
       this._pingInterval = window.setInterval(this._ping, 20000)
-      this._state = { type: 'Starting' }
       this._send({ type: 'ClientReady', username: this._username })
       return
     }
