@@ -1,7 +1,8 @@
 # RedBoard
 
-A collaborative whiteboard driven by Redis, inspired by Figma. Please see my submission post for an
-explanation of my goals and inspiration for this project.
+A collaborative whiteboard driven by Redis, inspired by Figma. Please see my
+[submission post](https://dev.to/lukewestby/redboard-a-collaborative-whiteboard-driven-by-redis-1f)
+for an explanation of my goals and inspiration for this project.
 
 ![Very short demo of application behavior](docs/demo.gif)
 
@@ -143,6 +144,8 @@ In either case, open up to http://localhost:1234
 To make deploys work, you need to create free account on [Redis Cloud](https://redis.info/try-free-dev-to)
 
 ### Google Cloud Run
+
+> This doesn't work yet, still figuring out why
 
 [![Run on Google
 Cloud](https://deploy.cloud.run/button.svg)](https://deploy.cloud.run/?git_repo=https://github.com/lukewestby/redboard.git)
