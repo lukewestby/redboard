@@ -4,8 +4,8 @@
   "description": "",
   "main": "client/index.tsx",
   "scripts": {
-    "start": "vite client",
-    "build": "vite build client --outDir ../static"
+    "start": "vite",
+    "build": "vite build --outDir ../static"
   },
   "author": "",
   "license": "MIT",
