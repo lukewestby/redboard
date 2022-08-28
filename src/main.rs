@@ -39,7 +39,6 @@ async fn main() {
     dotenv::dotenv().ok();
     tracing::subscriber::set_global_default(
         tracing_subscriber::fmt()
-            .pretty()
             .with_span_events(tracing_subscriber::fmt::format::FmtSpan::ENTER)
             .finish(),
     )
@@ -49,6 +48,8 @@ async fn main() {
         .ok()
         .and_then(|port_string| port_string.parse::<u16>().ok())
         .unwrap_or(1234);
+
+    tracing::info!("Serving on port {port}");
 
     let redis_url = env::var("REDIS_URL").expect("REDIS_URL is required");
     let redis_client = Client::open(redis_url).expect("Could not connect to redis");
