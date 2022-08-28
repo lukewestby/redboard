@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: redboard
+    env: docker
+    plan: free # optional (defaults to starter)
+    branch: main # optional (defaults to master)
+    healthCheckPath: /
+    envVars:
+      - key: REDIS_URL
+        sync: false

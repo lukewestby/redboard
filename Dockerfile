@@ -18,5 +18,5 @@ RUN apk add --no-cache openssl-dev musl-dev libc6-compat
 COPY --from=backend_build /app/target/debug/redboard /
 COPY --from=frontend_build /app/static /static
 
-EXPOSE ${PORT}
+EXPOSE 1234
 CMD ./redboard

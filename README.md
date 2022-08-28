@@ -149,3 +149,7 @@ To make deploys work, you need to create free account on [Redis Cloud](https://r
 
 [![Run on Google
 Cloud](https://deploy.cloud.run/button.svg)](https://deploy.cloud.run/?git_repo=https://github.com/lukewestby/redboard.git)
+
+### Render
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy)
