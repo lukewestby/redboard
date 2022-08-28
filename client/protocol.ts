@@ -196,7 +196,8 @@ class Protocol {
   private _connect(): WebSocket {
     let closed = false
     const host = import.meta.env.DEV ? 'localhost:8080' : location.host
-    const socket = new WebSocket(`ws://${host}/api/board/${this._boardId}?session_id=${this._sessionId}`)
+    const protocol = location.protocol === 'https:' ? 'wss' : 'ws'
+    const socket = new WebSocket(`${protocol}://${host}/api/board/${this._boardId}?session_id=${this._sessionId}`)
     const closedListener = () => {
       if (closed) return
       closed = true
