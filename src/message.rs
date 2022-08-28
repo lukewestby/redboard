@@ -17,7 +17,7 @@ pub enum ClientMessage {
     Ping,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "type")]
 pub enum ServerMessage {
     ServerReady,
@@ -30,7 +30,7 @@ pub enum ServerMessage {
     UserCursorLeft { session_id: Uuid },
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PresenceMessage {
     pub source_session: Uuid,
     pub message: ServerMessage,

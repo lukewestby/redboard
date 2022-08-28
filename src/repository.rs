@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use async_stream::try_stream;
+use async_stream::{stream, try_stream};
 use bb8_redis::{bb8::Pool, RedisConnectionManager};
 use futures::{stream::Stream, Future, StreamExt};
 use itertools::Itertools;
@@ -11,6 +11,11 @@ use redis::{
 };
 use regex::Regex;
 use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::{
+    sync::broadcast::{self, error::RecvError, Sender as BroadcastSender},
+    task::JoinHandle,
+};
 use uuid::Uuid;
 
 use crate::change::Change;
@@ -19,6 +24,8 @@ use crate::message::{JsonObject, PresenceMessage, ServerMessage};
 #[derive(Clone)]
 pub struct Repository {
     pool: Pool<RedisConnectionManager>,
+    presence_sender: BroadcastSender<(Uuid, PresenceMessage)>,
+    _presence_handle: Arc<JoinHandle<()>>,
 }
 
 impl Repository {
@@ -26,7 +33,14 @@ impl Repository {
     pub async fn new(client: Client) -> Result<Self> {
         let manager = RedisConnectionManager::new(client.get_connection_info().clone())?;
         let pool = Pool::builder().max_size(5).build(manager).await?;
-        Ok(Self { pool })
+        let (presence_sender, _) = broadcast::channel(1000);
+        let presence_handle =
+            tokio::task::spawn(Self::start_presence(pool.clone(), presence_sender.clone()));
+        Ok(Self {
+            pool,
+            presence_sender,
+            _presence_handle: Arc::new(presence_handle),
+        })
     }
 
     #[tracing::instrument(skip(self), err)]
@@ -196,7 +210,7 @@ impl Repository {
                 .scan_match::<_, String>("board/*/changes")
                 .await?;
             while let Some(stream_key) = stream_keys.next().await {
-                if let Ok(board_id) = Self::parse_board_id_from_stream_key(stream_key.as_str()) {
+                if let Ok(board_id) = Self::parse_board_id_from_key(stream_key.as_str()) {
                     yield board_id;
                 }
             }
@@ -436,18 +450,18 @@ impl Repository {
     pub async fn stream_presence_messages_for_board(
         &self,
         board_id: Uuid,
-    ) -> impl Stream<Item = Result<PresenceMessage>> + Unpin {
-        let pool = self.pool.clone();
-        Box::pin(try_stream! {
-            let connection = pool.dedicated_connection().await?;
-            let mut pubsub = connection.into_pubsub();
-            pubsub
-                .subscribe(Self::board_presence_key(board_id))
-                .await?;
-            let mut stream = pubsub.into_on_message();
-            while let Some(msg) = stream.next().await {
-                if let Ok(message) = serde_json::from_slice::<PresenceMessage>(msg.get_payload_bytes()) {
-                    yield message;
+    ) -> impl Stream<Item = PresenceMessage> + Unpin {
+        let sender = self.presence_sender.clone();
+        Box::pin(stream! {
+            let mut receiver = sender.subscribe();
+            loop {
+                let (next_board_id, next_message) = match receiver.recv().await {
+                    Err(RecvError::Closed) => break,
+                    Err(RecvError::Lagged(_)) => continue,
+                    Ok(message) => message,
+                };
+                if next_board_id == board_id {
+                    yield next_message;
                 }
             }
         })
@@ -472,9 +486,9 @@ impl Repository {
     }
 
     #[tracing::instrument(err)]
-    fn parse_board_id_from_stream_key(stream_key: &str) -> Result<Uuid> {
+    fn parse_board_id_from_key(stream_key: &str) -> Result<Uuid> {
         lazy_static! {
-            static ref BOARD_ID_REGEX: Regex = Regex::new(r"board/([^/]+)/changes").unwrap();
+            static ref BOARD_ID_REGEX: Regex = Regex::new(r"^board/([^/]+)/.*$").unwrap();
         }
 
         Ok(BOARD_ID_REGEX
@@ -538,5 +552,33 @@ impl Repository {
                 }
             }
         }
+    }
+
+    #[tracing::instrument(skip_all)]
+    async fn start_presence(
+        pool: Pool<RedisConnectionManager>,
+        sender: BroadcastSender<(Uuid, PresenceMessage)>,
+    ) {
+        loop {
+            let _ = Self::run_presence(pool.clone(), sender.clone()).await;
+        }
+    }
+
+    #[tracing::instrument(skip_all, err)]
+    async fn run_presence(
+        pool: Pool<RedisConnectionManager>,
+        sender: BroadcastSender<(Uuid, PresenceMessage)>,
+    ) -> Result<()> {
+        let dedicated_connection = pool.dedicated_connection().await?;
+        let mut pubsub = dedicated_connection.into_pubsub();
+        pubsub.psubscribe("board/*/presence").await?;
+        let mut stream = pubsub.into_on_message();
+        while let Some(msg) = stream.next().await {
+            let channel_name = msg.get_channel::<String>()?;
+            let board_id = Self::parse_board_id_from_key(channel_name.as_str())?;
+            let message = serde_json::from_slice::<PresenceMessage>(msg.get_payload_bytes())?;
+            let _ = sender.send((board_id, message));
+        }
+        Ok(())
     }
 }

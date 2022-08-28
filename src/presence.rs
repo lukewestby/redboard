@@ -1,5 +1,5 @@
 use anyhow::Result;
-use futures::TryStreamExt;
+use futures::stream::StreamExt;
 use uuid::Uuid;
 
 use crate::repository::Repository;
@@ -41,7 +41,7 @@ impl Presence {
             .repo
             .stream_presence_messages_for_board(self.board_id)
             .await;
-        while let Some(message) = message_stream.try_next().await? {
+        while let Some(message) = message_stream.next().await {
             if message.source_session != self.session_id {
                 self.socket_sender.send(message.message).await?;
             }
