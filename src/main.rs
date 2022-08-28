@@ -39,7 +39,6 @@ async fn main() {
     dotenv::dotenv().ok();
     tracing::subscriber::set_global_default(
         tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::ERROR)
             .pretty()
             .with_span_events(tracing_subscriber::fmt::format::FmtSpan::ENTER)
             .finish(),
@@ -57,7 +56,7 @@ async fn main() {
 
     let app = Router::new()
         .merge(SpaRouter::new("/assets", "static/assets").index_file("../index.html"))
-        .route("/board/:board_id", get(board_handler))
+        .route("/api/board/:board_id", get(board_handler))
         .layer(Extension(repo))
         .layer(
             CorsLayer::new()
@@ -65,7 +64,7 @@ async fn main() {
                 .allow_origin(cors::Any),
         );
 
-    Server::bind(&SocketAddr::from(([127, 0, 0, 1], 1234)))
+    Server::bind(&SocketAddr::from(([0, 0, 0, 0], 1234)))
         .serve(app.into_make_service())
         .await
         .expect("Failed to start server");

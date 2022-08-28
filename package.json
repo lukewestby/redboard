@@ -2,9 +2,10 @@
   "name": "redboard-web",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "client/index.tsx",
   "scripts": {
-    "start": "vite"
+    "start": "vite client",
+    "build": "vite build client --outDir ../static"
   },
   "author": "",
   "license": "MIT",

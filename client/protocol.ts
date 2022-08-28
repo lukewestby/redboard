@@ -195,7 +195,8 @@ class Protocol {
 
   private _connect(): WebSocket {
     let closed = false
-    const socket = new WebSocket(`ws://${location.host}/board/${this._boardId}?session_id=${this._sessionId}`)
+    const host = import.meta.env.DEV ? 'localhost:1234' : location.host
+    const socket = new WebSocket(`ws://${host}/api/board/${this._boardId}?session_id=${this._sessionId}`)
     const closedListener = () => {
       if (closed) return
       closed = true
@@ -298,8 +299,8 @@ class Protocol {
         this._emitter.dispatchEvent(new CustomEvent('changereceived', {
           detail: {
             change: { type: 'Insert', id, object },
-            source: this._sessionId
-          }
+            source: 'SNAPSHOT',
+          },
         }))
       })
       this._state = { type: 'Streaming' }

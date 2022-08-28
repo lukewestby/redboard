@@ -122,7 +122,8 @@ run natively you will need a running Redis server, Node 16, and the Rust toolcha
 
 ### Local installation
 
-The whole application can be started with docker compose:
+The whole application can be started with docker compose. This will probably take a couple of
+minutes to build. Classic Rust, am I right folks?
 
 ```
 docker compose up

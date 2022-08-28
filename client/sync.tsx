@@ -122,10 +122,21 @@ export const ObjectProtocolSync = ({
     }
   }
 
+  const emitChangeEvent = useCallback((change: Change) => {
+    if (change.type === 'Delete') {
+      emitter.current.dispatchEvent(new CustomEvent('objectdeleted', { detail: { id: change.id } }))
+    } else {
+      const object = objects.current.get(change.id)
+      if (!object) return
+      emitter.current.dispatchEvent(new CustomEvent('objectchanged', { detail: { id: change.id, object } }))
+    }
+  }, [])
+
   const onChangeReceived = useCallback((change: Change, source: string) => {
     if (source === sessionId) {
       if (!unpendChange(change)) {
         materializeChange(change)
+        emitChangeEvent(change)
       }
     } else {
       if (pendingObjects.current.has(change.id)) {
@@ -136,13 +147,7 @@ export const ObjectProtocolSync = ({
       materializeChange(change)
       const pending = pendingChanges.current.get(change.id) ?? []
       pending.forEach(materializeChange)
-      if (change.type === 'Delete') {
-        emitter.current.dispatchEvent(new CustomEvent('objectdeleted', { detail: { id: change.id } }))
-      } else {
-        const object = objects.current.get(change.id)
-        if (!object) return
-        emitter.current.dispatchEvent(new CustomEvent('objectchanged', { detail: { id: change.id, object } }))
-      }
+      emitChangeEvent(change)
     }
   }, [sessionId])
 

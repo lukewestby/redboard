@@ -1,0 +1,22 @@
+services:
+  redis:
+    image: redis/redis-stack:latest
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+  app:
+    build: .
+    ports:
+      - 1234:1234
+    environment:
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+volumes:
+  redis_data:
