@@ -45,6 +45,11 @@ async fn main() {
     )
     .unwrap();
 
+    let port = env::var("PORT")
+        .ok()
+        .and_then(|port_string| port_string.parse::<u16>().ok())
+        .unwrap_or(1234);
+
     let redis_url = env::var("REDIS_URL").expect("REDIS_URL is required");
     let redis_client = Client::open(redis_url).expect("Could not connect to redis");
     let repo = Repository::new(redis_client)
@@ -64,7 +69,7 @@ async fn main() {
                 .allow_origin(cors::Any),
         );
 
-    Server::bind(&SocketAddr::from(([0, 0, 0, 0], 1234)))
+    Server::bind(&SocketAddr::from(([0, 0, 0, 0], port)))
         .serve(app.into_make_service())
         .await
         .expect("Failed to start server");

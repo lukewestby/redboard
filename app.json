@@ -1,0 +1,9 @@
+{
+  "name": "redboard",
+  "env": {
+    "REDIS_URL": {
+        "description": "URL for Redis connection, e.g. redis://username:password@whatever:6379. Secure rediss: connections are supported as well.",
+        "required": true
+    }
+  }
+}

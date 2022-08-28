@@ -39,7 +39,7 @@ background process that collects expired sessions that may have been disconnecte
 This secondary feature adds a little bit of extra flourish to the app and also helps to
 contextualize for the user any changes that show up on the screen because of other users.
 
-TODO presence protocol
+![presence protocol diagram](docs/presence_protocol.png)
 
 ### How the data is stored:
 
@@ -77,10 +77,10 @@ TODO presence protocol
 - Sessions connected to a board are tracked in a set at `board/{board_id}/sessions`. When a
   session joins a board its UUID is added to the set. It is removed from the set when the socket
   connection disconnects or when a background process discovers that its checkin has expired.
-- Any updates pertaining to a session within a given board are added to a stream at
+- Any updates pertaining to a session within a given board are published to a channel at
   `board/{board_id}/presence`. These data include messages about the position of the user's cursor
-  as well as notifications for when a session joins or leaves. Only about 1000 messages are
-  retained because they are ephemeral and not critical for consistency of the board's objects.
+  as well as notifications for when a session joins or leaves. Only 1000 messages are retained in
+  memory because they are ephemeral and not critical for consistency of the board's objects.
 
 ### How the data is accessed:
 
@@ -104,16 +104,13 @@ reflected back from the server.
 
 #### Presence
 
-When a session connects it also subscribes to `board/{board_id}/presence`, which contains updates
-about other sessions that are on the board. When another user opens a board, moves their cursor in
-the editing surface, or leaves the board notifications of that behavior are added to
-`board/{board_id}/presence`. Every other session consumes these notifications and sends them to the
-client, ignoring updates for themselves. Streaming starts at `$` because total consistency is not
-necessary and we only really care about the most recent updates. 
-
+A background task PSUBSCRIBES to `board/*/presence` and pushes any messages received onto a `tokio`
+broadcast channel. When a session connects it reads messages from the channel, ignoring
+messages that are for itself or for a different board. The broadcast channel only holds 1000
+messages at a time, but dropping messages is acceptable because presence messages are ephemeral and
+not critical to data consistency.
 
 ## How to run it locally?
-
 
 ### Prerequisites
 
@@ -131,9 +128,10 @@ docker compose up
 
 You can also build it natively by compiling the frontend to static files and then compiling and
 running the backend. Before you do, make sure that the `REDIS_URL` env var is set! You can use a
-.env file or just set it directly in your terminal session.
+.env file or just set it directly in your terminal.
 
 ```
+yarn install
 yarn build
 REDIS_URL=redis://whatever cargo run
 ```
@@ -146,4 +144,5 @@ To make deploys work, you need to create free account on [Redis Cloud](https://r
 
 ### Google Cloud Run
 
-[Insert Run on Google button](https://cloud.google.com/blog/products/serverless/introducing-cloud-run-button-click-to-deploy-your-git-repos-to-google-cloud)
+[![Run on Google
+Cloud](https://deploy.cloud.run/button.svg)](https://deploy.cloud.run/?git_repo=https://github.com/lukewestby/redboard.git)
