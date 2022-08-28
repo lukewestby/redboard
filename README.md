@@ -3,7 +3,7 @@
 A collaborative whiteboard driven by Redis, inspired by Figma. Please see my submission post for an
 explanation of my goals and inspiration for this project.
 
-![Very short demo of application behavior](./docs/demo.gif)
+![Very short demo of application behavior](/docs/demo.gif)
 
 ## How it works
 
@@ -32,7 +32,7 @@ changes are streamed to the client starting from the last known change _before_ 
 to ensure no data is missed. There is also a background process that keeps each snapshot up to date
 to make both phases fast.
 
-![object protocol diagram](./docs/object_protocol.png)
+![object protocol diagram](/docs/object_protocol.png)
 
 The secondary use case for the backend is the _presence protocol_, which tracks the presence and
 cursor position of all connected clients and broadcasts them to everyone else. There is also a
@@ -40,7 +40,7 @@ background process that collects expired sessions that may have been disconnecte
 This secondary feature adds a little bit of extra flourish to the app and also helps to
 contextualize for the user any changes that show up on the screen because of other users.
 
-![presence protocol diagram](./docs/presence_protocol.png)
+![presence protocol diagram](/docs/presence_protocol.png)
 
 ### How the data is stored:
 
