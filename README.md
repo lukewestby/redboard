@@ -137,7 +137,7 @@ yarn build
 REDIS_URL=redis://whatever cargo run
 ```
 
-In either case, open up to http://localhost:1234
+In either case, open up to http://localhost:8080
 
 ## Deployment
 
