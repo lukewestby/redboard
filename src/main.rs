@@ -48,37 +48,44 @@ async fn main() {
 
     let redis_url = env::var("REDIS_URL").expect("REDIS_URL is required");
     let redis_client = Client::open(redis_url).expect("Could not connect to redis");
+
+    // The repo encapsulates all interactions with Redis
     let repo = Repository::new(redis_client)
         .await
         .expect("Could not start repository");
 
+    // Run one instance of the checkpointer in the background for the lifetime of the application
     let checkpointer_handle = tokio::task::spawn(Checkpointer::new(repo.clone()).start());
+
+    // Run one instance of the session checker in the background for the lifetime of the application
     let session_checker_handle = tokio::task::spawn(SessionChecker::new(repo.clone()).start());
 
+    // Build the application router
     let app = Router::new()
+        // Serve the client
         .merge(SpaRouter::new("/assets", "static/assets").index_file("../index.html"))
+        // Handle websocket connections for boards
         .route("/api/board/:board_id", get(board_handler))
+        // Provide the repo to any listeners
         .layer(Extension(repo))
+        // Allow CORS connections to make development easier
         .layer(
             CorsLayer::new()
                 .allow_methods([Method::GET])
                 .allow_origin(cors::Any),
         );
 
+    // Start the server
     Server::bind(&SocketAddr::from(([0, 0, 0, 0], 8080)))
         .serve(app.into_make_service())
         .await
         .expect("Failed to start server");
 
+    // If the server shuts down, also shut down background tasks
     checkpointer_handle.abort();
     checkpointer_handle.await.ok();
     session_checker_handle.abort();
     session_checker_handle.await.ok();
-}
-
-#[tracing::instrument]
-async fn index_handler() -> impl IntoResponse {
-    axum::response::Html("<html><body>Hello world</body></html>")
 }
 
 #[derive(Deserialize)]
@@ -91,6 +98,7 @@ struct BoardQuery {
     session_id: Uuid,
 }
 
+/// Accept incoming websocket connections and start a BoardHandler task to drive them
 #[tracing::instrument(skip_all, fields(path.board_id = %path.board_id, query.session_id = %query.session_id))]
 async fn board_handler(
     Extension(redis_pool): Extension<Repository>,
